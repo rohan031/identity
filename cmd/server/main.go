@@ -12,6 +12,7 @@ import (
 
 	"github.com/rohan031/identity/database"
 	"github.com/rohan031/identity/router"
+	"github.com/rohan031/identity/services"
 )
 
 func initServer() (*chi.Mux, *pgxpool.Pool) {
@@ -20,6 +21,8 @@ func initServer() (*chi.Mux, *pgxpool.Pool) {
 	if err != nil {
 		log.Fatal("Error connecting to database\n", err)
 	}
+
+	services.SetDbPool(pool)
 
 	r := chi.NewRouter()
 

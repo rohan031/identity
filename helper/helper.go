@@ -13,7 +13,11 @@ import (
 	"github.com/rohan031/identity/services"
 )
 
-func DecodeJson[T any](w http.ResponseWriter, r *http.Request) (T, error) {
+type constraint interface {
+	services.Identity
+}
+
+func DecodeJson[T constraint](w http.ResponseWriter, r *http.Request) (T, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
 
 	decoder := json.NewDecoder(r.Body)
