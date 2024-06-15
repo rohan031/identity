@@ -27,7 +27,16 @@ func DecodeJson[T constraint](w http.ResponseWriter, r *http.Request) (T, error)
 	err := decoder.Decode(&payload)
 
 	if err != nil {
+		var syntaxError *json.SyntaxError
+
 		switch {
+		case errors.As(err, &syntaxError):
+			message := fmt.Sprintf("Request body contains badly-formed JSON (at position %d)", syntaxError.Offset)
+			return payload, &custom.MalformedRequest{
+				Status:  http.StatusBadRequest,
+				Message: message,
+			}
+
 		case strings.HasPrefix(err.Error(), "json: unknown field "):
 			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
 			message := fmt.Sprintf("Request body contains unknown field %s", fieldName)
