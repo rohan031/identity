@@ -7,11 +7,20 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+
+	"github.com/rohan031/identity/database"
 	"github.com/rohan031/identity/router"
 )
 
-func initServer() *chi.Mux {
+func initServer() (*chi.Mux, *pgxpool.Pool) {
+	// getting db connection pool
+	pool, err := database.CreatePool()
+	if err != nil {
+		log.Fatal("Error connecting to database\n", err)
+	}
+
 	r := chi.NewRouter()
 
 	// middlewares
@@ -20,7 +29,7 @@ func initServer() *chi.Mux {
 
 	r.Mount("/", router.Router())
 
-	return r
+	return r, pool
 }
 
 func main() {
@@ -34,7 +43,8 @@ func main() {
 		PORT = port
 	}
 
-	router := initServer()
+	router, pool := initServer()
+	defer pool.Close()
 
 	log.Printf("Server is listening on PORT: %s", PORT)
 	http.ListenAndServe(":"+PORT, router)
