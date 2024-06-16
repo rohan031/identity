@@ -87,12 +87,12 @@ func CreateSecondaryContactArgs(pid int, email, phoneNumber string) pgx.NamedArg
 
 // get response
 const GetContactDetailsById = `
-select 
-    array_agg(id) as id, 
-    array_agg(email) filter (where email is not null) as email, 
-    array_agg(phone_number) filter (where phone_number is not null) as phone_number 
-from contact 
-where linked_id = @id
+SELECT 
+    COALESCE(array_agg(id), '{}') AS id, 
+    COALESCE(array_agg(email) FILTER (where email is not null), '{}') AS email, 
+    COALESCE(array_agg(phone_number) FILTER (where phone_number is not null), '{}') AS phone_number 
+FROM contact 
+WHERE linked_id = @id;
 `
 
 func GetContactDetailsByIdArgs(id int) pgx.NamedArgs {
