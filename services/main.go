@@ -1,6 +1,10 @@
 package services
 
-import "github.com/jackc/pgx/v5/pgxpool"
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
 type JSONResponse struct {
 	Error   bool        `json:"error"`
@@ -9,6 +13,7 @@ type JSONResponse struct {
 }
 
 var db *pgxpool.Pool
+var ctx context.Context = context.Background()
 
 func SetDbPool(pool *pgxpool.Pool) {
 	db = pool

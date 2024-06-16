@@ -15,6 +15,12 @@ func GetIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = user.GetIdentity()
+	if err != nil {
+		helper.HandleError(w, err)
+		return
+	}
+
 	// validate req.body
 	if valid := user.ValidateBody(); !valid {
 		helper.HandleError(

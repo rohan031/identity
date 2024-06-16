@@ -8,7 +8,7 @@ CREATE TABLE "contact" (
   "phone_number" varchar,
   "email" varchar,
   "linked_id" int,
-  "link_precedence" link,
+  "link_precedence" link NOT NULL,
   "created_at" timestamp DEFAULT (now()),
   "updated_at" timestamp DEFAULT (now()),
   "deleted_at" timestamp
