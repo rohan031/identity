@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 	"github.com/rohan031/identity/database"
 )
 
@@ -59,14 +60,55 @@ func (i *Identity) GetIdentity() error {
 		_, err := db.Exec(ctx, database.CreatePrimaryContact, args)
 		if err != nil {
 			log.Printf("Error creating primary contact: %v\n", err)
+			return err
 		}
-		return err
+
+		setValuesInRedis(i)
+
+		return nil
 	}
 
 	// create secondary contact if new value
+	_, emailErr := redisClient.Get(ctx, i.Email).Result()
+	_, phoneErr := redisClient.Get(ctx, i.PhoneNumber).Result()
+
+	if emailErr != nil || phoneErr != nil {
+		if errors.Is(emailErr, redis.Nil) || errors.Is(phoneErr, redis.Nil) {
+			// one is new value
+			args := database.CreateSecondaryContactArgs(primaryContact.Id, i.Email, i.PhoneNumber)
+			_, err := db.Exec(ctx, database.CreateSecondaryContact, args)
+			if err != nil {
+				log.Printf("error creating secondary contact: %v\n", err)
+				return err
+			}
+			setValuesInRedis(i)
+			return nil
+		}
+
+		log.Printf("error getting data from redis:\n emailErr: %v\nphoneErr:%v", emailErr, phoneErr)
+		return err
+	}
 
 	log.Println("primary id", primaryContact.Id)
 	return nil
+}
+
+func setValuesInRedis(i *Identity) {
+	if i.Email != "" {
+		err := redisClient.Set(ctx, i.Email, "1", 0).Err()
+		if err != nil {
+			log.Printf("error adding email in redis: %v\n", err)
+
+		}
+
+	}
+	if i.PhoneNumber != "" {
+		err := redisClient.Set(ctx, i.PhoneNumber, "1", 0).Err()
+		if err != nil {
+			log.Printf("error adding phoneNumber in redis: %v\n", err)
+
+		}
+	}
 }
 
 func getPrimary(i *Identity) (*IdentityPrimary, error) {
@@ -87,6 +129,11 @@ func getPrimary(i *Identity) (*IdentityPrimary, error) {
 		return nil, secErr
 	}
 
+	gotPrimary := true
+	if secErr != nil && errors.Is(secErr, pgx.ErrNoRows) {
+		gotPrimary = false
+	}
+
 	// resolve primary
 	args = database.GetPrimaryDetailsArgs(email, phoneNumber)
 	rows, err := db.Query(ctx, database.GetPrimaryDetails, args)
@@ -102,18 +149,18 @@ func getPrimary(i *Identity) (*IdentityPrimary, error) {
 		return nil, err
 	}
 
-	for _, c := range contacts {
-		if c.Id == contact.Id {
-			continue
+	if gotPrimary {
+		for _, c := range contacts {
+			if c.Id == contact.Id {
+				continue
+			}
+
+			err := resolvePrimary(contact.Id, c.Id)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		err := resolvePrimary(contact.Id, c.Id)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if secErr == nil {
 		return &contact, nil
 	}
 

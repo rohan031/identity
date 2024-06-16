@@ -64,3 +64,23 @@ func ResolvePrimaryConflictArgs(pId, sId int) pgx.NamedArgs {
 		"sId": sId,
 	}
 }
+
+// creating secondary contact
+const CreateSecondaryContact = `
+	INSERT INTO contact (email, phone_number, link_precedence, linked_id) 
+	VALUES (COALESCE(@email, NULL), COALESCE(@phoneNumber, NULL), 'secondary', @pId)
+`
+
+func CreateSecondaryContactArgs(pid int, email, phoneNumber string) pgx.NamedArgs {
+	args := pgx.NamedArgs{
+		"pId": pid,
+	}
+	if email != "" {
+		args["email"] = email
+	}
+	if phoneNumber != "" {
+		args["phoneNumber"] = phoneNumber
+	}
+
+	return args
+}
