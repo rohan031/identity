@@ -27,15 +27,14 @@ func GetIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = user.GetIdentity()
+	res, err := user.GetIdentity()
 	if err != nil {
 		helper.HandleError(w, err)
 		return
 	}
 
 	var payload services.JSONResponse
-	payload.Error = false
-	payload.Message = "endpoint is working"
+	payload.Data = res
 
 	helper.EncodeJson(w, http.StatusOK, payload)
 }

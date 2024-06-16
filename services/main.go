@@ -8,9 +8,9 @@ import (
 )
 
 type JSONResponse struct {
-	Error   bool        `json:"error"`
+	Error   bool        `json:"error,omitempty"`
 	Message string      `json:"string,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
+	Data    interface{} `json:"contact,omitempty"`
 }
 
 var db *pgxpool.Pool

@@ -23,8 +23,11 @@ type IdentityPrimary struct {
 	LinkedId    sql.NullInt32  `db:"linked_id"`
 }
 
-type IdentityId struct {
-	Id int `db:"id"`
+type IdenityDetails struct {
+	Id          int      `json:"primaryContactId" db:"-"`
+	Email       []string `json:"emails" db:"email"`
+	PhoneNumber []string `json:"phoneNumbers" db:"phone_number"`
+	SecondaryId []int    `json:"secondaryContactIds" db:"id"`
 }
 
 func validEmail(email string) bool {
@@ -48,10 +51,45 @@ func (i *Identity) ValidateBody() bool {
 
 }
 
-func (i *Identity) GetIdentity() error {
+func generateResponse(pi *IdentityPrimary) (*IdenityDetails, error) {
+	args := database.GetContactDetailsByIdArgs(pi.Id)
+	row, err := db.Query(ctx, database.GetContactDetailsById, args)
+	if err != nil {
+		log.Printf("error fetching response details from db: %v\n", err)
+		return nil, err
+	}
+	defer row.Close()
+
+	details, err := pgx.CollectOneRow(row, pgx.RowToStructByName[IdenityDetails])
+	if err != nil {
+		log.Printf("error reding row details: %v\n", err)
+		return nil, err
+	}
+
+	// adding primary details
+	details.Id = pi.Id
+	if pi.Email.Valid {
+		primaryEmail := pi.Email.String
+		details.Email = append(details.Email, "")
+		copy(details.Email[1:], details.Email)
+
+		details.Email[0] = primaryEmail
+	}
+
+	if pi.PhoneNumber.Valid {
+		primaryPhoneNumber := pi.PhoneNumber.String
+		details.PhoneNumber = append(details.PhoneNumber, "")
+		copy(details.PhoneNumber[1:], details.PhoneNumber)
+
+		details.PhoneNumber[0] = primaryPhoneNumber
+	}
+	return &details, nil
+}
+
+func (i *Identity) GetIdentity() (*IdenityDetails, error) {
 	primaryContact, err := getPrimary(i)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// create primary contact
@@ -60,12 +98,16 @@ func (i *Identity) GetIdentity() error {
 		_, err := db.Exec(ctx, database.CreatePrimaryContact, args)
 		if err != nil {
 			log.Printf("Error creating primary contact: %v\n", err)
-			return err
+			return nil, err
 		}
 
 		setValuesInRedis(i)
-
-		return nil
+		// generate response
+		res, err := generateResponse(primaryContact)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
 	}
 
 	// create secondary contact if new value
@@ -79,18 +121,28 @@ func (i *Identity) GetIdentity() error {
 			_, err := db.Exec(ctx, database.CreateSecondaryContact, args)
 			if err != nil {
 				log.Printf("error creating secondary contact: %v\n", err)
-				return err
+				return nil, err
 			}
 			setValuesInRedis(i)
-			return nil
+			// generate response
+			res, err := generateResponse(primaryContact)
+			if err != nil {
+				return nil, err
+			}
+			return res, nil
 		}
 
 		log.Printf("error getting data from redis:\n emailErr: %v\nphoneErr:%v", emailErr, phoneErr)
-		return err
+		return nil, err
 	}
 
+	// generate response
 	log.Println("primary id", primaryContact.Id)
-	return nil
+	res, err := generateResponse(primaryContact)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func setValuesInRedis(i *Identity) {
