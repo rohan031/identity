@@ -22,7 +22,12 @@ func initServer() (*chi.Mux, *pgxpool.Pool) {
 		log.Fatal("Error connecting to database\n", err)
 	}
 
-	services.SetDbPool(pool)
+	// redis connection
+	client, err := database.CreateRedisClient()
+	if err != nil {
+		log.Fatal("Error connecting to redis\n", err)
+	}
+	services.SetConnections(pool, client)
 
 	r := chi.NewRouter()
 

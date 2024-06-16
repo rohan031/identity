@@ -63,6 +63,8 @@ func (i *Identity) GetIdentity() error {
 		return err
 	}
 
+	// create secondary contact if new value
+
 	log.Println("primary id", primaryContact.Id)
 	return nil
 }

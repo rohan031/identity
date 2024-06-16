@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 type JSONResponse struct {
@@ -13,8 +14,10 @@ type JSONResponse struct {
 }
 
 var db *pgxpool.Pool
+var redisClient *redis.Client
 var ctx context.Context = context.Background()
 
-func SetDbPool(pool *pgxpool.Pool) {
+func SetConnections(pool *pgxpool.Pool, client *redis.Client) {
 	db = pool
+	redisClient = client
 }
