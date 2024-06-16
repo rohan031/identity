@@ -30,6 +30,10 @@ type IdenityDetails struct {
 	SecondaryId []int    `json:"secondaryContactIds" db:"id"`
 }
 
+type IdentityId struct {
+	Id int `db:"id"`
+}
+
 func validEmail(email string) bool {
 	regexEmail := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
 	emailValid, _ := regexp.MatchString(regexEmail, email)
@@ -52,6 +56,7 @@ func (i *Identity) ValidateBody() bool {
 }
 
 func generateResponse(pi *IdentityPrimary) (*IdenityDetails, error) {
+	log.Println("gen response")
 	args := database.GetContactDetailsByIdArgs(pi.Id)
 	row, err := db.Query(ctx, database.GetContactDetailsById, args)
 	if err != nil {
@@ -95,11 +100,23 @@ func (i *Identity) GetIdentity() (*IdenityDetails, error) {
 	// create primary contact
 	if primaryContact == nil {
 		args := database.CreatePrimaryContactArgs(i.Email, i.PhoneNumber)
-		_, err := db.Exec(ctx, database.CreatePrimaryContact, args)
+		rows, err := db.Query(ctx, database.CreatePrimaryContact, args)
 		if err != nil {
 			log.Printf("Error creating primary contact: %v\n", err)
 			return nil, err
 		}
+
+		defer rows.Close()
+
+		contact, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[IdentityId])
+		if err != nil {
+			log.Printf("Error reading rows create primary: %v\n", err)
+			return nil, err
+		}
+		primaryContact = new(IdentityPrimary)
+		primaryContact.Id = contact.Id
+		primaryContact.Email = stringToNullString(i.Email)
+		primaryContact.PhoneNumber = stringToNullString(i.PhoneNumber)
 
 		setValuesInRedis(i)
 		// generate response

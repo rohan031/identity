@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -20,4 +21,17 @@ var ctx context.Context = context.Background()
 func SetConnections(pool *pgxpool.Pool, client *redis.Client) {
 	db = pool
 	redisClient = client
+}
+
+func stringToNullString(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{
+			String: "",
+			Valid:  false,
+		}
+	}
+	return sql.NullString{
+		String: s,
+		Valid:  true,
+	}
 }
