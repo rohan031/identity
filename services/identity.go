@@ -131,6 +131,22 @@ func (i *Identity) ValidateBody() bool {
 }
 
 func (i *Identity) GetIdentity() error {
+	primaryContact, err := getPrimary(i)
+	if err != nil {
+		return err
+	}
+
+	// create primary contact
+	if primaryContact == nil {
+		args := database.CreatePrimaryContactArgs(i.Email, i.PhoneNumber)
+		_, err := db.Exec(ctx, database.CreatePrimaryContact, args)
+		if err != nil {
+			log.Printf("Error creating primary contact: %v\n", err)
+		}
+		return err
+	}
+
+	log.Println("primary id", primaryContact.Id)
 	return nil
 }
 
@@ -138,7 +154,7 @@ func getPrimary(i *Identity) (*IdentityPrimary, error) {
 	email := i.Email
 	phoneNumber := i.PhoneNumber
 
-	args := database.GetPrimaryDetailsArgs(email, phoneNumber)
+	args := database.GetPrimaryDetailsArgs(email, phoneNumber, "primary")
 	rows, err := db.Query(ctx, database.GetPrimaryDetails, args)
 	if err != nil {
 		log.Printf("Error querying db to get primary details: %v\n", err)
@@ -155,7 +171,43 @@ func getPrimary(i *Identity) (*IdentityPrimary, error) {
 	lenContact := len(contacts)
 
 	if lenContact == 0 {
-		return nil, nil
+		args := database.GetPrimaryDetailsArgs(email, phoneNumber, "secondary")
+		rows, err := db.Query(ctx, database.GetPrimaryDetails, args)
+		if err != nil {
+			log.Printf("Error querying db to get primary details: %v\n", err)
+			return nil, err
+		}
+		defer rows.Close()
+
+		contacts, err := pgx.CollectRows(rows, pgx.RowToStructByName[IdentityPrimary])
+		if err != nil {
+			log.Printf("error collecting rows for get primary details: %v\n", err)
+			return nil, err
+		}
+
+		if len(contacts) == 0 {
+			return nil, nil
+		}
+
+		if !contacts[0].LinkedId.Valid {
+			return nil, nil
+		}
+
+		args = database.GetContactByIdArgs(contacts[0].LinkedId.Int32)
+		row, err := db.Query(ctx, database.GetContactById, args)
+		if err != nil {
+			log.Printf("Error querying db to get primary details by id: %v\n", err)
+			return nil, err
+		}
+		defer row.Close()
+
+		contact, err := pgx.CollectOneRow(row, pgx.RowToStructByName[IdentityPrimary])
+		if err != nil {
+			log.Printf("error collecting rows for get primary details by id: %v\n", err)
+			return nil, err
+		}
+
+		return &contact, nil
 	}
 
 	if lenContact == 1 {
@@ -163,6 +215,24 @@ func getPrimary(i *Identity) (*IdentityPrimary, error) {
 	}
 
 	// resolve primary
+	record1 := contacts[0]
+	record2 := contacts[1]
 
-	return nil, nil
+	if record1.Email.Valid && record1.Email.String == email {
+		err := resolvePrimary(record1, record2)
+		return &record1, err
+	}
+
+	err = resolvePrimary(record2, record1)
+	return &record2, err
+}
+
+func resolvePrimary(primary, secondary IdentityPrimary) error {
+	args := database.ResolvePrimaryConflictArgs(primary.Id, secondary.Id)
+	_, err := db.Exec(ctx, database.ResolvePrimaryConflict, args)
+	if err != nil {
+		log.Printf("Error resolving primary contact conflict: %v", err)
+	}
+
+	return err
 }
