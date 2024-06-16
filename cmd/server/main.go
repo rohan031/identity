@@ -32,7 +32,8 @@ func initServer() (*chi.Mux, *pgxpool.Pool) {
 	r := chi.NewRouter()
 
 	// middlewares
-	r.Use(middleware.Logger)                               // logging middleware
+	r.Use(middleware.Logger) // logging middleware
+	r.Use(middleware.Recoverer)
 	r.Use(middleware.AllowContentType("application/json")) // to only allow req body with json
 
 	r.Mount("/", router.Router())
