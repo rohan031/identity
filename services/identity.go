@@ -56,7 +56,6 @@ func (i *Identity) ValidateBody() bool {
 }
 
 func generateResponse(pi *IdentityPrimary) (*IdenityDetails, error) {
-	log.Println("gen response")
 	args := database.GetContactDetailsByIdArgs(pi.Id)
 	row, err := db.Query(ctx, database.GetContactDetailsById, args)
 	if err != nil {
@@ -131,17 +130,15 @@ func (i *Identity) GetIdentity() (*IdenityDetails, error) {
 	_, emailErr := redisClient.Get(ctx, i.Email).Result()
 	_, phoneErr := redisClient.Get(ctx, i.PhoneNumber).Result()
 
-	if emailErr != nil || phoneErr != nil {
-		if errors.Is(emailErr, redis.Nil) || errors.Is(phoneErr, redis.Nil) {
-			// one is new value
-			args := database.CreateSecondaryContactArgs(primaryContact.Id, i.Email, i.PhoneNumber)
-			_, err := db.Exec(ctx, database.CreateSecondaryContact, args)
+	if (i.Email != "" || i.PhoneNumber != "") &&
+		(emailErr != nil || phoneErr != nil) {
+
+		if (i.Email != "" && errors.Is(emailErr, redis.Nil)) ||
+			(i.PhoneNumber != "" && errors.Is(phoneErr, redis.Nil)) {
+			err := CreateSecondaryContact(primaryContact.Id, i)
 			if err != nil {
-				log.Printf("error creating secondary contact: %v\n", err)
 				return nil, err
 			}
-			setValuesInRedis(i)
-			// generate response
 			res, err := generateResponse(primaryContact)
 			if err != nil {
 				return nil, err
@@ -149,8 +146,14 @@ func (i *Identity) GetIdentity() (*IdenityDetails, error) {
 			return res, nil
 		}
 
-		log.Printf("error getting data from redis:\n emailErr: %v\nphoneErr:%v", emailErr, phoneErr)
-		return nil, err
+		if i.Email != "" && emailErr != nil {
+			log.Printf("error getting email from redis: %v\n", emailErr)
+			return nil, emailErr
+		}
+		if i.PhoneNumber != "" && phoneErr != nil {
+			log.Printf("error getting phone-number from redis: %v\n", phoneErr)
+			return nil, phoneErr
+		}
 	}
 
 	// generate response
@@ -160,6 +163,17 @@ func (i *Identity) GetIdentity() (*IdenityDetails, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+func CreateSecondaryContact(id int, i *Identity) error {
+	args := database.CreateSecondaryContactArgs(id, i.Email, i.PhoneNumber)
+	_, err := db.Exec(ctx, database.CreateSecondaryContact, args)
+	if err != nil {
+		log.Printf("error creating secondary contact: %v\n", err)
+		return err
+	}
+	setValuesInRedis(i)
+	return nil
 }
 
 func setValuesInRedis(i *Identity) {
