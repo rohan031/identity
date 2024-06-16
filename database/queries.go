@@ -6,29 +6,31 @@ const GetPrimaryDetails = `
 	SELECT id, email, phone_number, linked_id
 	FROM contact 
 	WHERE (email = @email OR phone_number = @phoneNumber) 
-	AND link_precedence = @link
+	AND link_precedence = 'primary'
 `
 
-func GetPrimaryDetailsArgs(email, phoneNumber, link string) pgx.NamedArgs {
-	return pgx.NamedArgs{
-		"email":       email,
-		"phoneNumber": phoneNumber,
-		"link":        link,
+func GetPrimaryDetailsArgs(email, phoneNumber string) pgx.NamedArgs {
+	args := pgx.NamedArgs{}
+	if email != "" {
+		args["email"] = email
 	}
+	if phoneNumber != "" {
+		args["phoneNumber"] = phoneNumber
+	}
+
+	return args
 }
 
-// get contact by id
-const GetContactById = `
-	SELECT id, email, phone_number, linked_id
-	FROM contact 
-	WHERE id=@id
+// get primary Contact from secondary
+const GetPrimaryDetailsBySecondary = `
+WITH linkedId AS (
+	SELECT linked_id AS id FROM contact
+	WHERE (email = @email OR phone_number = @phoneNumber) 
+	AND link_precedence = 'secondary'
+)
+SELECT c.id, c.email, c.phone_number, c.linked_id FROM contact c, linkedId l
+WHERE c.id = l.id
 `
-
-func GetContactByIdArgs(id int32) pgx.NamedArgs {
-	return pgx.NamedArgs{
-		"id": id,
-	}
-}
 
 // create primary contact
 const CreatePrimaryContact = `
