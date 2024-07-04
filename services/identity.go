@@ -70,6 +70,10 @@ func generateResponse(pi *IdentityPrimary) (*IdenityDetails, error) {
 		return nil, err
 	}
 
+	// to avoid duplicate values
+	emailSet := make(map[string]struct{})
+	phoneSet := make(map[string]struct{})
+
 	// adding primary details
 	details.Id = pi.Id
 	if pi.Email.Valid {
@@ -80,6 +84,16 @@ func generateResponse(pi *IdentityPrimary) (*IdenityDetails, error) {
 		details.Email[0] = primaryEmail
 	}
 
+	// dealing with the duplicate emails
+	uniqueEmails := []string{}
+	for _, email := range details.Email {
+		if _, exists := emailSet[email]; !exists {
+			emailSet[email] = struct{}{}
+			uniqueEmails = append(uniqueEmails, email)
+		}
+	}
+	details.Email = uniqueEmails
+
 	if pi.PhoneNumber.Valid {
 		primaryPhoneNumber := pi.PhoneNumber.String
 		details.PhoneNumber = append(details.PhoneNumber, "")
@@ -87,6 +101,17 @@ func generateResponse(pi *IdentityPrimary) (*IdenityDetails, error) {
 
 		details.PhoneNumber[0] = primaryPhoneNumber
 	}
+
+	// dealing with unique phone number
+	uniquePhoneNumbers := []string{}
+	for _, phone := range details.PhoneNumber {
+		if _, exists := phoneSet[phone]; !exists {
+			phoneSet[phone] = struct{}{}
+			uniquePhoneNumbers = append(uniquePhoneNumbers, phone)
+		}
+	}
+	details.PhoneNumber = uniquePhoneNumbers
+
 	return &details, nil
 }
 
